@@ -18,6 +18,20 @@ npx prisma migrate dev
 yarn start:dev
 ```
 
+## Super Admin Account
+
+Khi ứng dụng khởi động lần đầu, hệ thống sẽ tự động tạo một super admin account mặc định:
+
+- **Username**: `admin`
+- **Email**: `admin@library.com`
+- **Password**: `admin123`
+- **Role**: `ADMIN`
+- **Branch**: Tự động tạo "Chi nhánh Trung tâm" nếu chưa có
+
+⚠️ **LƯU Ý**: Vui lòng đổi mật khẩu sau khi đăng nhập lần đầu!
+
+Nếu đã có admin trong hệ thống, hệ thống sẽ bỏ qua việc tạo mới.
+
 ## Cấu trúc Database
 
 ### Models

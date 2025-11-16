@@ -1,98 +1,297 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Hệ thống Quản lý Thư viện
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Dự án quản lý thư viện được xây dựng với NestJS và Prisma (SQLite).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Cài đặt
 
 ```bash
-$ yarn install
+# Cài đặt dependencies
+yarn install
+
+# Generate Prisma Client
+npx prisma generate
+
+# Chạy migrations
+npx prisma migrate dev
+
+# Chạy ứng dụng
+yarn start:dev
 ```
 
-## Compile and run the project
+## Cấu trúc Database
 
+### Models
+
+- **Branch**: Chi nhánh thư viện
+  - id: UUID
+  - name: Tên chi nhánh
+  
+- **User**: Người dùng hệ thống
+  - id: UUID
+  - username: Tên đăng nhập (unique)
+  - email: Email (unique)
+  - password: Mật khẩu
+  - role: ADMIN | STAFF | MANAGER | READER
+  - branchId: ID chi nhánh
+
+- **Book**: Sách
+  - id: UUID
+  - title: Tên sách
+  - author: Tác giả
+  - genre: Thể loại
+  - description: Mô tả
+  - branchId: ID chi nhánh
+
+- **Borrow**: Lượt mượn sách
+  - id: UUID
+  - userId: ID người mượn
+  - bookId: ID sách
+  - branchId: ID chi nhánh
+  - borrowDate: Ngày mượn
+  - returnDate: Ngày trả
+  - status: BORROWED | RETURNED
+
+## Phân quyền
+
+### ADMIN
+- Toàn quyền trên tất cả các chi nhánh
+- CRUD tất cả các resource
+
+### MANAGER
+- Toàn quyền trên chi nhánh của mình
+- CRUD tất cả các resource (trừ tạo user mới)
+- Có quyền đọc danh sách user
+
+### STAFF
+- Quyền trên chi nhánh của mình
+- Tạo bạn đọc mới (chỉ được tạo role READER)
+- Quản lý lượt mượn sách
+
+### READER
+- Chỉ có quyền đọc (xem sách, lượt mượn)
+
+## API Endpoints
+
+### Authentication
+
+#### Register (Đăng ký)
+- `POST /auth/register` - Đăng ký tài khoản mới (role READER)
+  - Body: `{ username: string, email: string, password: string, branchId: string }`
+  - Response: `{ user: {...}, access_token: string }`
+
+#### Login (Đăng nhập)
+- `POST /auth/login` - Đăng nhập
+  - Body: `{ email: string, password: string }`
+  - Response: `{ user: {...}, access_token: string }`
+
+#### Sử dụng JWT Token
+
+Tất cả các API yêu cầu header:
+```
+Authorization: Bearer <access_token>
+```
+
+Token được trả về từ `/auth/register` hoặc `/auth/login`.
+
+### Branches
+
+- `GET /branches` - Lấy danh sách chi nhánh (có pagination)
+  - Query params: `page`, `limit`
+  - Roles: ADMIN, MANAGER, STAFF, READER
+
+- `GET /branches/:id` - Lấy chi tiết chi nhánh
+  - Roles: ADMIN, MANAGER, STAFF, READER
+
+- `POST /branches` - Tạo chi nhánh mới
+  - Body: `{ name: string }`
+  - Roles: ADMIN, MANAGER
+
+- `PATCH /branches/:id` - Cập nhật chi nhánh
+  - Body: `{ name?: string }`
+  - Roles: ADMIN, MANAGER
+
+- `DELETE /branches/:id` - Xóa chi nhánh
+  - Roles: ADMIN
+
+### Users
+
+- `GET /users` - Lấy danh sách user (có pagination)
+  - Query params: `page`, `limit`
+  - Roles: ADMIN, MANAGER, STAFF
+  - Manager/Staff chỉ xem được user trong branch của mình
+
+- `GET /users/:id` - Lấy chi tiết user
+  - Roles: ADMIN, MANAGER, STAFF
+  - Manager/Staff chỉ xem được user trong branch của mình
+
+- `POST /users` - Tạo user mới
+  - Body: `{ username: string, email: string, password: string, role?: UserRole, branchId: string }`
+  - Roles: ADMIN, STAFF
+  - Staff chỉ được tạo user với role READER
+
+- `PATCH /users/:id` - Cập nhật user
+  - Body: `{ username?: string, email?: string, password?: string, role?: UserRole, branchId?: string }`
+  - Roles: ADMIN, MANAGER, STAFF
+  - Staff không được thay đổi role
+
+- `DELETE /users/:id` - Xóa user
+  - Roles: ADMIN, MANAGER
+
+### Books
+
+- `GET /books` - Lấy danh sách sách (có pagination)
+  - Query params: `page`, `limit`
+  - Roles: ADMIN, MANAGER, STAFF, READER
+  - Manager/Staff chỉ xem được sách trong branch của mình
+
+- `GET /books/:id` - Lấy chi tiết sách
+  - Roles: ADMIN, MANAGER, STAFF, READER
+  - Manager/Staff chỉ xem được sách trong branch của mình
+
+- `POST /books` - Tạo sách mới
+  - Body: `{ title: string, author: string, genre: string, description?: string, branchId: string }`
+  - Roles: ADMIN, MANAGER
+
+- `PATCH /books/:id` - Cập nhật sách
+  - Body: `{ title?: string, author?: string, genre?: string, description?: string, branchId?: string }`
+  - Roles: ADMIN, MANAGER
+
+- `DELETE /books/:id` - Xóa sách
+  - Roles: ADMIN, MANAGER
+
+### Borrows
+
+- `GET /borrows` - Lấy danh sách lượt mượn (có pagination)
+  - Query params: `page`, `limit`
+  - Roles: ADMIN, MANAGER, STAFF, READER
+  - Manager/Staff chỉ xem được lượt mượn trong branch của mình
+
+- `GET /borrows/:id` - Lấy chi tiết lượt mượn
+  - Roles: ADMIN, MANAGER, STAFF, READER
+  - Manager/Staff chỉ xem được lượt mượn trong branch của mình
+
+- `POST /borrows` - Tạo lượt mượn mới
+  - Body: `{ userId: string, bookId: string, branchId: string }`
+  - Roles: ADMIN, MANAGER, STAFF
+
+- `PATCH /borrows/:id` - Cập nhật lượt mượn (trả sách)
+  - Body: `{ returnDate?: Date, status?: BorrowStatus }`
+  - Roles: ADMIN, MANAGER, STAFF
+  - Nếu status = RETURNED, returnDate sẽ tự động được set
+
+- `DELETE /borrows/:id` - Xóa lượt mượn
+  - Roles: ADMIN, MANAGER
+
+## Pagination
+
+Tất cả các API GET danh sách đều hỗ trợ pagination:
+
+```
+GET /books?page=1&limit=10
+```
+
+Response:
+```json
+{
+  "data": [...],
+  "total": 100,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 10
+}
+```
+
+## Ví dụ sử dụng
+
+### 1. Đăng ký tài khoản mới
 ```bash
-# development
-$ yarn run start
-
-# watch mode
-$ yarn run start:dev
-
-# production mode
-$ yarn run start:prod
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "reader1",
+    "email": "reader1@example.com",
+    "password": "password123",
+    "branchId": "<branch-id>"
+  }'
 ```
 
-## Run tests
+Response:
+```json
+{
+  "user": {
+    "id": "...",
+    "username": "reader1",
+    "email": "reader1@example.com",
+    "role": "READER",
+    "branchId": "..."
+  },
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
 
+### 2. Đăng nhập
 ```bash
-# unit tests
-$ yarn run test
-
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "reader1@example.com",
+    "password": "password123"
+  }'
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+### 3. Tạo chi nhánh (cần token ADMIN hoặc MANAGER)
 ```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
+curl -X POST http://localhost:3000/branches \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{"name": "Chi nhánh Hà Nội"}'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4. Tạo user (Staff - cần token STAFF hoặc ADMIN)
+```bash
+curl -X POST http://localhost:3000/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "username": "reader2",
+    "email": "reader2@example.com",
+    "password": "password123",
+    "branchId": "<branch-id>"
+  }'
+```
 
-## Resources
+### 5. Tạo sách (cần token ADMIN hoặc MANAGER)
+```bash
+curl -X POST http://localhost:3000/books \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "title": "Sách hay",
+    "author": "Tác giả A",
+    "genre": "Tiểu thuyết",
+    "description": "Mô tả sách",
+    "branchId": "<branch-id>"
+  }'
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### 6. Tạo lượt mượn (cần token ADMIN, MANAGER hoặc STAFF)
+```bash
+curl -X POST http://localhost:3000/borrows \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "userId": "<user-id>",
+    "bookId": "<book-id>",
+    "branchId": "<branch-id>"
+  }'
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### 7. Trả sách (cần token ADMIN, MANAGER hoặc STAFF)
+```bash
+curl -X PATCH http://localhost:3000/borrows/<borrow-id> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "status": "RETURNED"
+  }'
+```

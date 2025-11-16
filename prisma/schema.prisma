@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+  MANAGER
+  READER
+}
+
+enum BorrowStatus {
+  BORROWED
+  RETURNED
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users   User[]
+  books   Book[]
+  borrows Borrow[]
+
+  @@map("branches")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  role      UserRole @default(READER)
+  branchId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch  Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  borrows Borrow[]
+
+  @@map("users")
+}
+
+model Book {
+  id          String   @id @default(uuid())
+  title       String
+  author      String
+  genre       String
+  description String?
+  branchId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch  Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  borrows Borrow[]
+
+  @@map("books")
+}
+
+model Borrow {
+  id         String      @id @default(uuid())
+  userId     String
+  bookId     String
+  branchId   String
+  borrowDate DateTime    @default(now())
+  returnDate DateTime?
+  status     BorrowStatus @default(BORROWED)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("borrows")
+}
